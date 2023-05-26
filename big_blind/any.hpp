@@ -1,5 +1,5 @@
-#ifndef BIGBLINDCXX_ANY_HPP
-#define BIGBLINDCXX_ANY_HPP
+#ifndef BIGBLINDCXX_ANY
+#define BIGBLINDCXX_ANY
 
 #include <type_traits>
 #include <typeinfo>
@@ -45,7 +45,11 @@ class any {
     return *this;
   }
 
-  const std::type_info& type() const { return content->type(); }
+  const std::type_info& type() const {
+    if (!has_value())
+      return typeid(void);
+    return content->type();
+  }
 
   bool has_value() const noexcept { return content != nullptr; }
 
@@ -84,4 +88,4 @@ class any {
 };
 }  // namespace bigblind
 
-#endif  // BIGBLINDCXX_ANY_HPP
+#endif  // BIGBLINDCXX_ANY

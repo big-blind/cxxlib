@@ -6,8 +6,6 @@ int main() {
   double d = 1.5;
   var = d;
   var = 'c';
+  // var.reset();
   std::cout << var.type().name() << "\n";
 }
-
-
-
