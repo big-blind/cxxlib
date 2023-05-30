@@ -1,11 +1,9 @@
 #include <iostream>
 #include "any.hpp"
+#include "memory.hpp"
+#include "optional.hpp"
 
 int main() {
-  bigblind::any var = 1;
-  double d = 1.5;
-  var = d;
-  var = 'c';
-  // var.reset();
-  std::cout << var.type().name() << "\n";
+  std::cout << "Hello, world!" << std::endl;
+  return 0;
 }
