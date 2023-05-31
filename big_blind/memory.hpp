@@ -1,6 +1,7 @@
-#ifndef BIGBLIND_MEMORY
-#define BIGBLIND_MEMORY
+#ifndef BIGBLINDCXX_MEMORY
+#define BIGBLINDCXX_MEMORY
 
+#include <tuple>
 #include <type_traits>
 
 namespace bigblind {
@@ -8,7 +9,7 @@ template <typename T>
 struct default_deleter {
   constexpr default_deleter() noexcept = default;
 
-  template <typename U, typename = std::_Require<std::is_convertible<U*, T*>>>
+  template <typename U, typename = std::is_convertible<U*, T*>>
   default_deleter(const default_deleter<U>&) noexcept {}
 
   void operator()(T* p) const {
@@ -35,23 +36,20 @@ class unique_ptr_impl {
  private:
   template <typename U, typename E, typename = void>
   struct Ptr {
-    using type = U;
+    using type = U*;
   };
 
-  // TODO: the following code is not suitable for msvc
-
-  // template <typename U, typename E>
-  // struct Ptr<U,
-  //            E,
-  //            std::__void_t<typename std::remove_reference<E>::type::pointer>>
-  //            {
-  //   using type = typename std::remove_reference<E>::type::pointer;
-  // };
+  template <typename U, typename E>
+  struct Ptr<U,
+             E,
+             std::void_t<typename std::remove_reference<E>::type::pointer>> {
+    using type = typename std::remove_reference<E>::type::pointer;
+  };
 
  public:
-  // using DeleterConstraint =
-  //     std::enable_if<std::__and_<std::__not_<std::is_pointer<D>>,
-  //                                std::is_default_constructible<D>>::value>;
+  using DeleterConstraint =
+      typename std::enable_if<!std::is_pointer<D>::value &&
+                              std::is_default_constructible<D>::value>;
 
   using pointer = typename Ptr<T, D>::type;
 
@@ -60,18 +58,34 @@ class unique_ptr_impl {
                 "an lvalue reference type");
 
   unique_ptr_impl() = default;
-  unique_ptr_impl(pointer p) : mptr(), mdeleter() { ptr() = p; }
+  unique_ptr_impl(pointer p) : m_t() { ptr() = p; }
 
-  pointer& ptr() { return mptr; }
-  pointer ptr() const { return mptr; }
-  D& deleter() { return mdeleter; }
-  const D& deleter() const { return mdeleter; }
+  template <typename Del>
+  unique_ptr_impl(pointer p, Del&& d) : m_t(p, std::forward<Del>(d)) {}
+
+  unique_ptr_impl(unique_ptr_impl&& u) noexcept : m_t(std::move(u.m_t)) {
+    u.ptr() = nullptr;
+  }
+
+  // unique_ptr_impl& operator=(unique_ptr_impl&& u) noexcept {
+  //   reset(__u.release());
+  //   _M_deleter() = std::forward<_Dp>(__u._M_deleter());
+  //   return *this;
+  // }
+
+  pointer& ptr() { return std::get<0>(m_t); }
+  pointer ptr() const { return std::get<0>(m_t); }
+  D& deleter() { return std::get<1>(m_t); }
+  const D& deleter() const { return std::get<1>(m_t); }
 
   // TODO...
 
  private:
-  pointer mptr;
-  D mdeleter;
+  std::tuple<pointer, D> m_t;
+};
+
+struct zero_then_variadic_args_t {
+  explicit zero_then_variadic_args_t() = default;
 };
 
 template <typename T,
@@ -80,6 +94,7 @@ template <typename T,
           bool = std::is_move_assignable<D>::value>
 struct unique_ptr_data : unique_ptr_impl<T, D> {
   using unique_ptr_impl<T, D>::unique_ptr_impl;
+  unique_ptr_data(zero_then_variadic_args_t) {}
   unique_ptr_data(unique_ptr_data&&) = default;
   unique_ptr_data& operator=(unique_ptr_data&&) = default;
 };
@@ -117,13 +132,16 @@ class unique_ptr {
   using element_type = T;
   using deleter_type = Deleter;
 
-  // template <typename Del = Deleter, typename = DeleterConstraint<Del>> why?
-  // template <typename = DeleterConstraint<Deleter>>
-  constexpr unique_ptr() noexcept : data() {}
+  template <typename Del = Deleter, typename = DeleterConstraint<Del>>
+  constexpr unique_ptr() noexcept : data(zero_then_variadic_args_t{}) {}
+
+  template <typename Del = Deleter, typename = DeleterConstraint<Del>>
+  explicit unique_ptr(pointer p) noexcept : data(p) {}
 
   // TODO...
 
-  typename std::add_lvalue_reference<element_type>::type operator*() const {
+  typename std::add_lvalue_reference<element_type>::type operator*()
+      const noexcept {
     return *get();
   }
 
@@ -148,4 +166,4 @@ class unique_ptr {
 // };
 }  // namespace bigblind
 
-#endif  // BIGBLIND_MEMORY
+#endif  // BIGBLINDCXX_MEMORY
